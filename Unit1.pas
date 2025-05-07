@@ -255,10 +255,10 @@ begin
   if GetLastError = ERROR_ALREADY_EXISTS then
   begin
     CloseHandle(FAppMutex);
+    FAppMutex := 0;
     Application.Terminate;
     exit;
   end;
-
   AddToAutoRun(CAppShortName, Application.ExeName);
   FIniPath := Application.ExeName + '.ini';
   LoadResourceFonts;
@@ -328,11 +328,16 @@ end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
-  WatchThread.Terminate;
-  FindCloseChangeNotification(ChangeHandle);
-  WatchThread.WaitFor;
-  WatchThread.Free;
-  CloseHandle(FAppMutex);
+  if Assigned(WatchThread) then
+  begin
+    WatchThread.Terminate;
+    WatchThread.WaitFor;
+    WatchThread.Free;
+  end;
+  if ChangeHandle <> 0 then
+    FindCloseChangeNotification(ChangeHandle);
+  if FAppMutex <> 0 then
+    CloseHandle(FAppMutex);
   if FResFontHandle <> 0 then
     RemoveFontMemResourceEx(FResFontHandle);
 end;
