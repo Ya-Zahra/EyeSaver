@@ -1,7 +1,7 @@
 unit Unit1;
 
 (*
-  "EyeSaver" ver 1.1 – Developed by Mohsen E.Davatgar
+  "EyeSaver" ver 1.2 – Developed by Mohsen E.Davatgar
   Built with Borland Delphi 7
   All rights reserved.
   https://github.com/Ya-Zahra
@@ -10,16 +10,15 @@ unit Unit1;
 interface
 
 uses
-  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, ExtCtrls, IniFiles;
+  Windows, Messages, SysUtils, Variants, Classes, Graphics,
+  Controls, Forms, Dialogs, ExtCtrls, StdCtrls, StrUtils,
+  SysConst, MonitorLabels, EnhancedIniFiles;
 
 const
   WM_APPINICHANGED = WM_USER + 1;
-  CAppShortName = 'HE_EyeSaver';
 
 type
   TForm1 = class(TForm)
-    Panel1: TPanel;
     Timer1: TTimer;
     Timer2: TTimer;
     procedure Timer1Timer(Sender: TObject);
@@ -32,6 +31,10 @@ type
     procedure FormDestroy(Sender: TObject);
   private
     { Private declarations }
+    FMonitorCount: Integer;
+    Panel1: TLabels;
+    FDebug: Boolean;
+    FUseRandomLCDFontColors: Boolean;
     FHideMouseCursor: Boolean;
     FAllowCloseWithAltF4: Boolean;
     FIniPath: string;
@@ -40,6 +43,7 @@ type
     FFadeInMiliseconds: Integer;
     FFadeOutMiliseconds: Integer;
     FLCDFontColor: Integer;
+    FLCDColor: Integer;
     FFontCount: DWORD;
     FResFontHandle: THandle;
     FAppMutex: THandle;
@@ -47,15 +51,19 @@ type
     procedure ShowForm;
     procedure DoHideForm;
     procedure WMIniChanged(var Message: TMessage); message WM_APPINICHANGED;
+    procedure WMDisplayChange(var Message: TMessage); message WM_DISPLAYCHANGE;
     procedure LoadCfg;
-    procedure SaveCfg;
+    procedure InitCfg;
     procedure HideMouseCursor;
     procedure ShowMouseCursor;
     procedure LoadResourceFonts;
     function GetLCDFontColor: Integer;
     function GetLCDFontName: string;
+    procedure UpdatePanel;
+    procedure UpdateFormSizePos;
   public
     { Public declarations }
+  protected
   end;
 
 var
@@ -75,18 +83,25 @@ var
   WatchThread: TThread;
 
 const
-  CResourceFontName = 'Digital-7 Mono';
+  CAppShortName = 'HE_EyeSaver';
+  CResourceFontName = 'Digital-7 Mono'; // 'DIGITAL7MONO';
   CResourceFontID = 'DIGITAL7MONO';
 
   CDefaultLCDFontName = 'Consolas';
 
+  CUseRandomLCDFontColors = true;
+  CLCDColor = Integer(clBlack);
   CLCDFontColor = Integer(clAqua);
   CFadeInMiliseconds = 2000;
   CFadeOutMiliseconds = 2000;
   CHideMouseCursor = true;
+  CMinSecondsToShowForm = 300; // 5 Minuts
   CSecondsToShowForm = 1200; // 20 Minuts
   CSecondsToPause = 90; // 1.5 Minuts
   CAllowCloseWithAltF4 = true;
+  _Debug = 'Debug';
+  _UseRandomLCDFontColors = 'UseRandomLCDFontColors';
+  _LCDColor = 'LCDColor';
   _LCDFontColor = 'LCDFontColor';
   _FadeInMiliseconds = 'FadeInMiliseconds';
   _FadeOutMiliseconds = 'FadeOutMiliseconds';
@@ -119,6 +134,7 @@ begin
       FindNextChangeNotification(ChangeHandle);
     end;
   end;
+
 end;
 
 procedure TForm1.HideMouseCursor;
@@ -140,10 +156,9 @@ begin
   begin
     Timer1.Enabled := false;
     FSecondsToPause := GSecondsToPause;
-    Timer2.Enabled := true;
-    Timer2Timer(nil);
-    FSecondsToShowForm := GSecondsToShowForm;
+    UpdatePanel;
     ShowForm;
+    Timer2.Enabled := true;
   end;
 end;
 
@@ -155,22 +170,106 @@ begin
     Result := CDefaultLCDFontName;
 end;
 
+function GenerateOptimalContrastColor(BgColor: TColor): TColor;
+var
+  R, G, B: Byte;
+  Luminance, ContrastRatio: Double;
+  TextColor: TColor;
+
+  function CalculateLuminance(R, G, B: Byte): Double;
+  begin
+    Result := (0.299 * R + 0.587 * G + 0.114 * B) / 255;
+  end;
+
+  function CalculateContrast(L1, L2: Double): Double;
+  begin
+    if L1 > L2 then
+      Result := (L1 + 0.05) / (L2 + 0.05)
+    else
+      Result := (L2 + 0.05) / (L1 + 0.05);
+  end;
+
+begin
+  BgColor := ColorToRGB(BgColor);
+  R := GetRValue(BgColor);
+  G := GetGValue(BgColor);
+  B := GetBValue(BgColor);
+
+  Luminance := CalculateLuminance(R, G, B);
+
+  if Luminance < 0.5 then
+  begin
+    repeat
+      TextColor := RGB(
+        150 + Random(106), // R: 150-255
+        150 + Random(106), // G: 150-255
+        150 + Random(106) // B: 150-255
+        );
+
+      ContrastRatio := CalculateContrast(
+        Luminance,
+        CalculateLuminance(
+        GetRValue(TextColor),
+        GetGValue(TextColor),
+        GetBValue(TextColor)
+        )
+        );
+
+    until (ContrastRatio >= 4.5);
+  end
+  else
+  begin
+    repeat
+      TextColor := RGB(
+        Random(106), // R: 0-105
+        Random(106), // G: 0-105
+        Random(106) // B: 0-105
+        );
+
+      ContrastRatio := CalculateContrast(
+        Luminance,
+        CalculateLuminance(
+        GetRValue(TextColor),
+        GetGValue(TextColor),
+        GetBValue(TextColor)
+        )
+        );
+
+    until (ContrastRatio >= 4.5);
+  end;
+
+  Result := TextColor;
+end;
+
 function TForm1.GetLCDFontColor(): Integer;
 begin
-  Result := FLCDFontColor;
+  if FUseRandomLCDFontColors then
+    Result := GenerateOptimalContrastColor(FLCDColor)
+  else
+    Result := FLCDFontColor;
+end;
+
+procedure TForm1.UpdateFormSizePos();
+begin
+  Top := Screen.DesktopTop;
+  Left := Screen.DesktopLeft;
+  Width := Screen.DesktopWidth;
+  Height := Screen.DesktopHeight;
 end;
 
 procedure TForm1.ShowForm();
 begin
-  Panel1.Font.Name := GetLCDFontName;
-  Panel1.Font.Color := GetLCDFontColor;
-  Panel1.Visible := true;
+  with Monitor do //this will update monitors
+    ;
+  Color := FLCDColor;
+  Panel1.FontName := GetLCDFontName;
+  Panel1.FontColor := GetLCDFontColor;
   HideMouseCursor;
-  Top := 0;
-  Left := 0;
-  Width := Screen.Width;
-  Height := Screen.Height;
+  UpdateFormSizePos;
+  Panel1.Visible := false;
   AnimateWindow(Handle, FFadeInMiliseconds, AW_ACTIVATE or AW_BLEND);
+  Sleep(1);
+  Panel1.Visible := true;
   Visible := true;
   BringToFront;
   SetForegroundWindow(Handle);
@@ -178,7 +277,7 @@ end;
 
 procedure TForm1.FormShow(Sender: TObject);
 begin
-  ShowForm;
+  //  ShowForm;
 end;
 
 procedure AddToAutoRun(AppName, AppPath: string);
@@ -198,31 +297,71 @@ begin
   end;
 end;
 
-procedure TForm1.SaveCfg;
+procedure TForm1.InitCfg;
+var
+  ini: TEnhancedIniFile;
+
+  procedure WriteINE(Ident: string; Value: Variant);
+  begin
+    with ini do
+      if not ValueExists(_Main, Ident) then
+        case VarType(Value) of
+          varSmallint, varInteger, varByte:
+            WriteInteger(_Main, Ident, Value);
+          varSingle, varDouble, varCurrency:
+            WriteFloat(_Main, Ident, Value);
+          varBoolean:
+            WriteBool(_Main, Ident, Value);
+          varString, varOleStr:
+            WriteString(_Main, Ident, Value);
+        end;
+  end;
+
 begin
   try
-    with TIniFile.Create(FIniPath) do
-      try
-        WriteInteger(_Main, _LCDFontColor, CLCDFontColor);
-        WriteInteger(_Main, _FadeInMiliseconds, CFadeInMiliseconds);
-        WriteInteger(_Main, _FadeOutMiliseconds, CFadeOutMiliseconds);
-        WriteBool(_Main, _HideMouseCursor, CHideMouseCursor);
-        WriteInteger(_Main, _SecondsToShowForm, GSecondsToShowForm);
-        WriteInteger(_Main, _SecondsToPause, GSecondsToPause);
-        WriteBool(_Main, _AllowCloseWithAltF4, CAllowCloseWithAltF4);
-      finally
-        Free;
-      end;
+    ini := TEnhancedIniFile.Create(FIniPath);
+    try
+      WriteINE(_UseRandomLCDFontColors, CUseRandomLCDFontColors);
+      WriteINE(_LCDColor, CLCDColor);
+      WriteINE(_LCDFontColor, CLCDFontColor);
+      WriteINE(_FadeInMiliseconds, CFadeInMiliseconds);
+      WriteINE(_FadeOutMiliseconds, CFadeOutMiliseconds);
+      WriteINE(_HideMouseCursor, CHideMouseCursor);
+      WriteINE(_SecondsToShowForm, GSecondsToShowForm);
+      WriteINE(_SecondsToPause, GSecondsToPause);
+      WriteINE(_AllowCloseWithAltF4, CAllowCloseWithAltF4);
+    finally
+      ini.Free;
+    end;
   except
     //no erros
   end;
 end;
 
+function STB(s: string): Boolean;
+var
+  i: Integer;
+begin
+  s := LowerCase(s);
+  if AnsiMatchStr(s, ['yes', 'true', 'y']) then
+    Result := true
+  else if AnsiMatchStr(s, ['no', 'false', 'n']) then
+    Result := false
+  else if TryStrToInt(s, i) then
+    Result := i <> 0
+  else
+    raise EConvertError.CreateResFmt(@SInvalidBoolean, [s]);
+  //    ConvertErrorFmt(@SInvalidBoolean, [S]);
+end;
+
 procedure TForm1.LoadCfg;
 begin
-  with TIniFile.Create(FIniPath) do
+  with TEnhancedIniFile.Create(FIniPath) do
     try
-      FLCDFontColor := ReadInteger(_Main, _LCDFontColor, CLCDFontColor);
+      FDebug := ReadBool(_Main, _Debug, false);
+      FUseRandomLCDFontColors := ReadBool(_Main, _UseRandomLCDFontColors, CUseRandomLCDFontColors);
+      FLCDColor := ReadColor(_Main, _LCDColor, CLCDColor);
+      FLCDFontColor := ReadColor(_Main, _LCDFontColor, CLCDFontColor);
       FFadeInMiliseconds := ReadInteger(_Main, _FadeInMiliseconds, CFadeInMiliseconds);
       FFadeOutMiliseconds := ReadInteger(_Main, _FadeOutMiliseconds, CFadeOutMiliseconds);
       FHideMouseCursor := ReadBool(_Main, _HideMouseCursor, CHideMouseCursor);
@@ -232,7 +371,9 @@ begin
     finally
       Free;
     end;
-  FSecondsToShowForm := Max(GSecondsToShowForm, 14);
+  if not FDebug then
+    GSecondsToShowForm := Max(GSecondsToShowForm, CMinSecondsToShowForm);
+  FSecondsToShowForm := GSecondsToShowForm;
   FSecondsToPause := GSecondsToPause;
   Timer1.Enabled := true;
 end;
@@ -251,6 +392,10 @@ end;
 
 procedure TForm1.FormCreate(Sender: TObject);
 begin
+  Randomize;
+  FMonitorCount := Screen.MonitorCount;
+  Panel1 := TLabels.Create(Self);
+
   FAppMutex := CreateMutex(nil, True, PChar(CAppShortName));
   if GetLastError = ERROR_ALREADY_EXISTS then
   begin
@@ -269,13 +414,9 @@ begin
 
   WatchThread := TChangeMonitorThread.Create(False);
 
-  GSecondsToShowForm := CSecondsToShowForm;
-  GSecondsToPause := CSecondsToPause;
-  FAllowCloseWithAltF4 := CAllowCloseWithAltF4;
-  if FileExists(FIniPath) then
-    LoadCfg
-  else
-    SaveCfg;
+  InitCfg;
+  //  if FileExists(FIniPath) then
+  LoadCfg;
 end;
 
 function SecondsToMMSS(Seconds: Integer): string;
@@ -303,19 +444,26 @@ begin
   HideForm;
 end;
 
-procedure TForm1.Timer2Timer(Sender: TObject);
+procedure TForm1.UpdatePanel;
 begin
   Panel1.Caption := SecondsToMMSS(FSecondsToPause);
+end;
+
+procedure TForm1.Timer2Timer(Sender: TObject);
+begin
+  Dec(FSecondsToPause);
+  UpdatePanel;
   if (FSecondsToPause <= 0) then
   begin
+    Application.ProcessMessages;
     DoHideForm;
     Exit;
   end;
-  Dec(FSecondsToPause);
 end;
 
 procedure TForm1.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 begin
+  FormStyle := fsNormal;
   CanClose := FAllowCloseWithAltF4;
 end;
 
@@ -328,14 +476,16 @@ end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
+  Timer1.Enabled := false;
+  Timer2.Enabled := false;
+  if ChangeHandle <> 0 then
+    FindCloseChangeNotification(ChangeHandle);
   if Assigned(WatchThread) then
   begin
     WatchThread.Terminate;
     WatchThread.WaitFor;
     WatchThread.Free;
   end;
-  if ChangeHandle <> 0 then
-    FindCloseChangeNotification(ChangeHandle);
   if FAppMutex <> 0 then
     CloseHandle(FAppMutex);
   if FResFontHandle <> 0 then
@@ -345,6 +495,20 @@ end;
 procedure TForm1.WMIniChanged(var Message: TMessage);
 begin
   LoadCfg;
+end;
+
+procedure TForm1.WMDisplayChange(var Message: TMessage);
+var
+  mc: Integer;
+begin
+  mc := GetSystemMetrics(SM_CMONITORS);
+  if mc <> FMonitorCount then
+  begin
+    FMonitorCount := mc;
+    UpdateFormSizePos;
+    Panel1.CheckMonitors;
+  end;
+  inherited;
 end;
 
 end.
