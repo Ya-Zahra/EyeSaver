@@ -10,7 +10,8 @@ program EyeSaver;
 uses
   Forms,
   Windows,
-  Unit1 in 'Unit1.pas' {Form1};
+  Unit1 in 'Unit1.pas' {Form1},
+  MonitorLabels in 'MonitorLabels.pas';
 
 {$R *.res}
 
