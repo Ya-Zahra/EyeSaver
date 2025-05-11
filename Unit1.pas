@@ -1,7 +1,7 @@
 unit Unit1;
 
 (*
-  "EyeSaver" ver 1.2 – Developed by Mohsen E.Davatgar
+  "EyeSaver" ver 1.3 – Developed by Mohsen E.Davatgar
   Built with Borland Delphi 7
   All rights reserved.
   https://github.com/Ya-Zahra
@@ -12,7 +12,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics,
   Controls, Forms, Dialogs, ExtCtrls, StdCtrls, StrUtils,
-  SysConst, MonitorLabels, EnhancedIniFiles, TypInfo;
+  SysConst, MonitorLabels, EnhancedIniFiles;
 
 const
   WM_APPINICHANGED = WM_USER + 1;
@@ -305,14 +305,8 @@ type
   TIniWriteAs = (iwaNormal, iwaBool, iwaInteger, iwaColor);
 var
   ini: TEnhancedIniFile;
-  procedure WriteINE2(const ValueType: PTypeInfo);
-  begin
-    if Assigned(ValueType) then
-      ShowMessage(GetEnumName(TypeInfo(TTypeKind), Ord(ValueType.Kind)) + ' - ' + ValueType.Name);
-  end;
   procedure WriteINE(Ident: string; Value: Variant; writeAs: TIniWriteAs = iwaNormal);
   begin
-    ShowMessage(Ident + ' : ' + GetEnumName(TypeInfo(TVarType), ord(VarType(Value))));
     with ini do
       if not ValueExists(_Main, Ident) then
         case VarType(Value) of
@@ -340,7 +334,6 @@ var
   end;
 begin
 
-  //WriteINE2(TypeInfo(TColor));
   try
     ini := TEnhancedIniFile.Create(FIniPath);
     try

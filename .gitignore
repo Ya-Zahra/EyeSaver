@@ -1,3 +1,4 @@
 # Ignore all .dof files
 *.dof
 EyeSaver.exe.ini
+*.res
