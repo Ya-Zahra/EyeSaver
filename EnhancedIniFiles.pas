@@ -3,7 +3,8 @@ unit EnhancedIniFiles;
 interface
 
 uses
-  IniFiles, Graphics, SysUtils, Classes, Math, Windows, ExtCtrls;
+  IniFiles, Graphics, SysUtils, Classes, Math, Windows, ExtCtrls,
+  Dialogs;
 
 type
   TEnhancedIniFile = class(TIniFile)
@@ -15,6 +16,8 @@ type
     function ParseHSLValue(const Value: string; out H, S, L: Double): Boolean;
     function ExtractDelimited(Index: Integer; const S: string; Delimiter: Char): string;
   end;
+
+function IntToColorString(Color: Integer): string;
 
 implementation
 
@@ -70,147 +73,148 @@ const
   clNameWindowText = 'Window Text';
 
 const
-  WebColors: array[0..139] of TIdentMapEntry = (
-    (Value: $F0F8FF; Name: 'AliceBlue'),
-    (Value: $FAEBD7; Name: 'AntiqueWhite'),
-    (Value: $00FFFF; Name: 'Aqua'),
-    (Value: $7FFFD4; Name: 'Aquamarine'),
-    (Value: $F0FFFF; Name: 'Azure'),
-    (Value: $F5F5DC; Name: 'Beige'),
-    (Value: $FFE4C4; Name: 'Bisque'),
-    (Value: $000000; Name: 'Black'),
-    (Value: $FFEBCD; Name: 'BlanchedAlmond'),
-    (Value: $0000FF; Name: 'Blue'),
-    (Value: $8A2BE2; Name: 'BlueViolet'),
-    (Value: $A52A2A; Name: 'Brown'),
-    (Value: $DEB887; Name: 'BurlyWood'),
-    (Value: $5F9EA0; Name: 'CadetBlue'),
-    (Value: $7FFF00; Name: 'Chartreuse'),
-    (Value: $D2691E; Name: 'Chocolate'),
-    (Value: $FF7F50; Name: 'Coral'),
-    (Value: $6495ED; Name: 'CornflowerBlue'),
-    (Value: $FFF8DC; Name: 'Cornsilk'),
-    (Value: $DC143C; Name: 'Crimson'),
-    (Value: $00FFFF; Name: 'Cyan'),
-    (Value: $00008B; Name: 'DarkBlue'),
-    (Value: $008B8B; Name: 'DarkCyan'),
-    (Value: $B8860B; Name: 'DarkGoldenRod'),
-    (Value: $A9A9A9; Name: 'DarkGray'),
-    (Value: $006400; Name: 'DarkGreen'),
-    (Value: $BDB76B; Name: 'DarkKhaki'),
-    (Value: $8B008B; Name: 'DarkMagenta'),
-    (Value: $556B2F; Name: 'DarkOliveGreen'),
-    (Value: $FF8C00; Name: 'DarkOrange'),
-    (Value: $9932CC; Name: 'DarkOrchid'),
-    (Value: $8B0000; Name: 'DarkRed'),
-    (Value: $E9967A; Name: 'DarkSalmon'),
-    (Value: $8FBC8F; Name: 'DarkSeaGreen'),
-    (Value: $483D8B; Name: 'DarkSlateBlue'),
-    (Value: $2F4F4F; Name: 'DarkSlateGray'),
-    (Value: $00CED1; Name: 'DarkTurquoise'),
-    (Value: $9400D3; Name: 'DarkViolet'),
-    (Value: $FF1493; Name: 'DeepPink'),
-    (Value: $00BFFF; Name: 'DeepSkyBlue'),
-    (Value: $696969; Name: 'DimGray'),
-    (Value: $1E90FF; Name: 'DodgerBlue'),
-    (Value: $B22222; Name: 'FireBrick'),
-    (Value: $FFFAF0; Name: 'FloralWhite'),
-    (Value: $228B22; Name: 'ForestGreen'),
-    (Value: $FF00FF; Name: 'Fuchsia'),
-    (Value: $DCDCDC; Name: 'Gainsboro'),
-    (Value: $F8F8FF; Name: 'GhostWhite'),
-    (Value: $FFD700; Name: 'Gold'),
-    (Value: $DAA520; Name: 'GoldenRod'),
-    (Value: $808080; Name: 'Gray'),
-    (Value: $008000; Name: 'Green'),
-    (Value: $ADFF2F; Name: 'GreenYellow'),
-    (Value: $F0FFF0; Name: 'HoneyDew'),
-    (Value: $FF69B4; Name: 'HotPink'),
-    (Value: $CD5C5C; Name: 'IndianRed'),
-    (Value: $4B0082; Name: 'Indigo'),
-    (Value: $FFFFF0; Name: 'Ivory'),
-    (Value: $F0E68C; Name: 'Khaki'),
-    (Value: $E6E6FA; Name: 'Lavender'),
-    (Value: $FFF0F5; Name: 'LavenderBlush'),
-    (Value: $7CFC00; Name: 'LawnGreen'),
-    (Value: $FFFACD; Name: 'LemonChiffon'),
-    (Value: $ADD8E6; Name: 'LightBlue'),
-    (Value: $F08080; Name: 'LightCoral'),
-    (Value: $E0FFFF; Name: 'LightCyan'),
-    (Value: $FAFAD2; Name: 'LightGoldenRodYellow'),
-    (Value: $D3D3D3; Name: 'LightGray'),
-    (Value: $90EE90; Name: 'LightGreen'),
-    (Value: $FFB6C1; Name: 'LightPink'),
-    (Value: $FFA07A; Name: 'LightSalmon'),
-    (Value: $20B2AA; Name: 'LightSeaGreen'),
-    (Value: $87CEFA; Name: 'LightSkyBlue'),
-    (Value: $778899; Name: 'LightSlateGray'),
-    (Value: $B0C4DE; Name: 'LightSteelBlue'),
-    (Value: $FFFFE0; Name: 'LightYellow'),
-    (Value: $00FF00; Name: 'Lime'),
-    (Value: $32CD32; Name: 'LimeGreen'),
-    (Value: $FAF0E6; Name: 'Linen'),
-    (Value: $FF00FF; Name: 'Magenta'),
-    (Value: $800000; Name: 'Maroon'),
-    (Value: $66CDAA; Name: 'MediumAquaMarine'),
-    (Value: $0000CD; Name: 'MediumBlue'),
-    (Value: $BA55D3; Name: 'MediumOrchid'),
-    (Value: $9370DB; Name: 'MediumPurple'),
-    (Value: $3CB371; Name: 'MediumSeaGreen'),
-    (Value: $7B68EE; Name: 'MediumSlateBlue'),
-    (Value: $00FA9A; Name: 'MediumSpringGreen'),
-    (Value: $48D1CC; Name: 'MediumTurquoise'),
-    (Value: $C71585; Name: 'MediumVioletRed'),
-    (Value: $191970; Name: 'MidnightBlue'),
-    (Value: $F5FFFA; Name: 'MintCream'),
-    (Value: $FFE4E1; Name: 'MistyRose'),
-    (Value: $FFE4B5; Name: 'Moccasin'),
-    (Value: $FFDEAD; Name: 'NavajoWhite'),
-    (Value: $000080; Name: 'Navy'),
-    (Value: $FDF5E6; Name: 'OldLace'),
-    (Value: $808000; Name: 'Olive'),
-    (Value: $6B8E23; Name: 'OliveDrab'),
-    (Value: $FFA500; Name: 'Orange'),
-    (Value: $FF4500; Name: 'OrangeRed'),
-    (Value: $DA70D6; Name: 'Orchid'),
-    (Value: $EEE8AA; Name: 'PaleGoldenRod'),
-    (Value: $98FB98; Name: 'PaleGreen'),
-    (Value: $AFEEEE; Name: 'PaleTurquoise'),
-    (Value: $DB7093; Name: 'PaleVioletRed'),
-    (Value: $FFEFD5; Name: 'PapayaWhip'),
-    (Value: $FFDAB9; Name: 'PeachPuff'),
-    (Value: $CD853F; Name: 'Peru'),
-    (Value: $FFC0CB; Name: 'Pink'),
-    (Value: $DDA0DD; Name: 'Plum'),
-    (Value: $B0E0E6; Name: 'PowderBlue'),
-    (Value: $800080; Name: 'Purple'),
-    (Value: $FF0000; Name: 'Red'),
-    (Value: $BC8F8F; Name: 'RosyBrown'),
-    (Value: $4169E1; Name: 'RoyalBlue'),
-    (Value: $8B4513; Name: 'SaddleBrown'),
-    (Value: $FA8072; Name: 'Salmon'),
-    (Value: $F4A460; Name: 'SandyBrown'),
-    (Value: $2E8B57; Name: 'SeaGreen'),
-    (Value: $FFF5EE; Name: 'SeaShell'),
-    (Value: $A0522D; Name: 'Sienna'),
-    (Value: $C0C0C0; Name: 'Silver'),
-    (Value: $87CEEB; Name: 'SkyBlue'),
-    (Value: $6A5ACD; Name: 'SlateBlue'),
-    (Value: $708090; Name: 'SlateGray'),
-    (Value: $FFFAFA; Name: 'Snow'),
-    (Value: $00FF7F; Name: 'SpringGreen'),
-    (Value: $4682B4; Name: 'SteelBlue'),
-    (Value: $D2B48C; Name: 'Tan'),
-    (Value: $008080; Name: 'Teal'),
-    (Value: $D8BFD8; Name: 'Thistle'),
-    (Value: $FF6347; Name: 'Tomato'),
-    (Value: $40E0D0; Name: 'Turquoise'),
-    (Value: $EE82EE; Name: 'Violet'),
-    (Value: $F5DEB3; Name: 'Wheat'),
-    (Value: $FFFFFF; Name: 'White'),
-    (Value: $F5F5F5; Name: 'WhiteSmoke'),
-    (Value: $FFFF00; Name: 'Yellow'),
-    (Value: $9ACD32; Name: 'YellowGreen')
+  WebColors: array[0..140] of TIdentMapEntry = (
+    (Value: $00FFF8F0; Name: 'AliceBlue'), // #F0F8FF
+    (Value: $00D7EBFA; Name: 'AntiqueWhite'), // #FAEBD7
+    (Value: $00FFFF00; Name: 'Aqua'), // #00FFFF
+    (Value: $00D4FF7F; Name: 'Aquamarine'), // #7FFFD4
+    (Value: $00FFFFF0; Name: 'Azure'), // #F0FFFF
+    (Value: $00DCF5F5; Name: 'Beige'), // #F5F5DC
+    (Value: $00C4E4FF; Name: 'Bisque'), // #FFE4C4
+    (Value: $00000000; Name: 'Black'), // #000000
+    (Value: $00CDEBFF; Name: 'BlanchedAlmond'), // #FFEBCD
+    (Value: $00FF0000; Name: 'Blue'), // #0000FF
+    (Value: $00E22B8A; Name: 'BlueViolet'), // #8A2BE2
+    (Value: $002A2AA5; Name: 'Brown'), // #A52A2A
+    (Value: $0087B8DE; Name: 'BurlyWood'), // #DEB887
+    (Value: $00A09E5F; Name: 'CadetBlue'), // #5F9EA0
+    (Value: $0000FF7F; Name: 'Chartreuse'), // #7FFF00
+    (Value: $001E69D2; Name: 'Chocolate'), // #D2691E
+    (Value: $00507FFF; Name: 'Coral'), // #FF7F50
+    (Value: $00ED9564; Name: 'CornflowerBlue'), // #6495ED
+    (Value: $00DCF8FF; Name: 'Cornsilk'), // #FFF8DC
+    (Value: $003C14DC; Name: 'Crimson'), // #DC143C
+    (Value: $00FFFF00; Name: 'Cyan'), // #00FFFF
+    (Value: $008B0000; Name: 'DarkBlue'), // #00008B
+    (Value: $008B8B00; Name: 'DarkCyan'), // #008B8B
+    (Value: $000B86B8; Name: 'DarkGoldenRod'), // #B8860B
+    (Value: $00A9A9A9; Name: 'DarkGray'), // #A9A9A9
+    (Value: $00006400; Name: 'DarkGreen'), // #006400
+    (Value: $006BB7BD; Name: 'DarkKhaki'), // #BDB76B
+    (Value: $008B008B; Name: 'DarkMagenta'), // #8B008B
+    (Value: $002F6B55; Name: 'DarkOliveGreen'), // #556B2F
+    (Value: $00008CFF; Name: 'DarkOrange'), // #FF8C00
+    (Value: $00CC3299; Name: 'DarkOrchid'), // #9932CC
+    (Value: $0000008B; Name: 'DarkRed'), // #8B0000
+    (Value: $007A96E9; Name: 'DarkSalmon'), // #E9967A
+    (Value: $008FBC8F; Name: 'DarkSeaGreen'), // #8FBC8F
+    (Value: $008B3D48; Name: 'DarkSlateBlue'), // #483D8B
+    (Value: $004F4F2F; Name: 'DarkSlateGray'), // #2F4F4F
+    (Value: $00D1CE00; Name: 'DarkTurquoise'), // #00CED1
+    (Value: $00D30094; Name: 'DarkViolet'), // #9400D3
+    (Value: $009314FF; Name: 'DeepPink'), // #FF1493
+    (Value: $00EBB700; Name: 'DeepSkyBlue'), // #00B7EB
+    (Value: $00696969; Name: 'DimGray'), // #696969
+    (Value: $00FF901E; Name: 'DodgerBlue'), // #1E90FF
+    (Value: $002222B2; Name: 'FireBrick'), // #B22222
+    (Value: $00F0FAFF; Name: 'FloralWhite'), // #FFFAF0
+    (Value: $00228B22; Name: 'ForestGreen'), // #228B22
+    (Value: $00FF00FF; Name: 'Fuchsia'), // #FF00FF
+    (Value: $00DCDCDC; Name: 'Gainsboro'), // #DCDCDC
+    (Value: $00FFF8F8; Name: 'GhostWhite'), // #F8F8FF
+    (Value: $0000D7FF; Name: 'Gold'), // #FFD700
+    (Value: $0020A5DA; Name: 'GoldenRod'), // #DAA520
+    (Value: $00808080; Name: 'Gray'), // #808080
+    (Value: $00008000; Name: 'Green'), // #008000
+    (Value: $002FFFAD; Name: 'GreenYellow'), // #ADFF2F
+    (Value: $00F0FFF0; Name: 'HoneyDew'), // #F0FFF0
+    (Value: $00B469FF; Name: 'HotPink'), // #FF69B4
+    (Value: $005C5CCD; Name: 'IndianRed'), // #CD5C5C
+    (Value: $0082004B; Name: 'Indigo'), // #4B0082
+    (Value: $00F0FFFF; Name: 'Ivory'), // #FFFFF0
+    (Value: $008CE6F0; Name: 'Khaki'), // #F0E68C
+    (Value: $00FAE6E6; Name: 'Lavender'), // #E6E6FA
+    (Value: $00F5F0FF; Name: 'LavenderBlush'), // #FFF0F5
+    (Value: $0000FC7C; Name: 'LawnGreen'), // #7CFC00
+    (Value: $00CDFAFF; Name: 'LemonChiffon'), // #FFFACD
+    (Value: $00E6D8AD; Name: 'LightBlue'), // #ADD8E6
+    (Value: $008080F0; Name: 'LightCoral'), // #F08080
+    (Value: $00FFFFE0; Name: 'LightCyan'), // #E0FFFF
+    (Value: $00D2FAFA; Name: 'LightGoldenRodYellow'), // #FAFAD2
+    (Value: $00D3D3D3; Name: 'LightGray'), // #D3D3D3
+    (Value: $0090EE90; Name: 'LightGreen'), // #90EE90
+    (Value: $00C1B6FF; Name: 'LightPink'), // #FFB6C1
+    (Value: $007AA0FF; Name: 'LightSalmon'), // #FFA07A
+    (Value: $00AAB220; Name: 'LightSeaGreen'), // #20B2AA
+    (Value: $00FACE87; Name: 'LightSkyBlue'), // #87CEFA
+    (Value: $00998877; Name: 'LightSlateGray'), // #778899
+    (Value: $00DEC4B0; Name: 'LightSteelBlue'), // #B0C4DE
+    (Value: $00E0FFFF; Name: 'LightYellow'), // #FFFFE0
+    (Value: $0000FF00; Name: 'Lime'), // #00FF00
+    (Value: $0032CD32; Name: 'LimeGreen'), // #32CD32
+    (Value: $00E6F0FA; Name: 'Linen'), // #FAF0E6
+    (Value: $00FF00FF; Name: 'Magenta'), // #FF00FF
+    (Value: $00000080; Name: 'Maroon'), // #800000
+    (Value: $00AACD66; Name: 'MediumAquaMarine'), // #66CDAA
+    (Value: $00CD0000; Name: 'MediumBlue'), // #0000CD
+    (Value: $00D355BA; Name: 'MediumOrchid'), // #BA55D3
+    (Value: $00DB7093; Name: 'MediumPurple'), // #9370DB
+    (Value: $0071B33C; Name: 'MediumSeaGreen'), // #3CB371
+    (Value: $00EE687B; Name: 'MediumSlateBlue'), // #7B68EE
+    (Value: $009AFA00; Name: 'MediumSpringGreen'), // #00FA9A
+    (Value: $00CCD148; Name: 'MediumTurquoise'), // #48D1CC
+    (Value: $008515C7; Name: 'MediumVioletRed'), // #C71585
+    (Value: $00701919; Name: 'MidnightBlue'), // #191970
+    (Value: $00FAFFF5; Name: 'MintCream'), // #F5FFFA
+    (Value: $00E1E4FF; Name: 'MistyRose'), // #FFE4E1
+    (Value: $00B5E4FF; Name: 'Moccasin'), // #FFE4B5
+    (Value: $00ADDEFF; Name: 'NavajoWhite'), // #FFDEAD
+    (Value: $00800000; Name: 'Navy'), // #000080
+    (Value: $00E6F5FD; Name: 'OldLace'), // #FDF5E6
+    (Value: $00008080; Name: 'Olive'), // #808000
+    (Value: $00238E6B; Name: 'OliveDrab'), // #6B8E23
+    (Value: $0000A5FF; Name: 'Orange'), // #FFA500
+    (Value: $000045FF; Name: 'OrangeRed'), // #FF4500
+    (Value: $00D670DA; Name: 'Orchid'), // #DA70D6
+    (Value: $00AAE8EE; Name: 'PaleGoldenRod'), // #EEE8AA
+    (Value: $0098FB98; Name: 'PaleGreen'), // #98FB98
+    (Value: $00EEEEAF; Name: 'PaleTurquoise'), // #AFEEEE
+    (Value: $009370DB; Name: 'PaleVioletRed'), // #DB7093
+    (Value: $00D5EFFF; Name: 'PapayaWhip'), // #FFEFD5
+    (Value: $00B9DAFF; Name: 'PeachPuff'), // #FFDAB9
+    (Value: $003F85CD; Name: 'Peru'), // #CD853F
+    (Value: $00CBC0FF; Name: 'Pink'), // #FFC0CB
+    (Value: $00DDA0DD; Name: 'Plum'), // #DDA0DD
+    (Value: $00E6E0B0; Name: 'PowderBlue'), // #B0E0E6
+    (Value: $00800080; Name: 'Purple'), // #800080
+    (Value: $00993366; Name: 'RebeccaPurple'), // #663399
+    (Value: $000000FF; Name: 'Red'), // #FF0000
+    (Value: $008F8FBC; Name: 'RosyBrown'), // #BC8F8F
+    (Value: $00E16941; Name: 'RoyalBlue'), // #4169E1
+    (Value: $0013458B; Name: 'SaddleBrown'), // #8B4513
+    (Value: $007280FA; Name: 'Salmon'), // #FA8072
+    (Value: $0060A4F4; Name: 'SandyBrown'), // #F4A460
+    (Value: $00578B2E; Name: 'SeaGreen'), // #2E8B57
+    (Value: $00EEF5FF; Name: 'SeaShell'), // #FFF5EE
+    (Value: $002D52A0; Name: 'Sienna'), // #A0522D
+    (Value: $00C0C0C0; Name: 'Silver'), // #C0C0C0
+    (Value: $00EBCE87; Name: 'SkyBlue'), // #87CEEB
+    (Value: $00CD5A6A; Name: 'SlateBlue'), // #6A5ACD
+    (Value: $00908070; Name: 'SlateGray'), // #708090
+    (Value: $00FAFAFF; Name: 'Snow'), // #FFFAFA
+    (Value: $007FFF00; Name: 'SpringGreen'), // #00FF7F
+    (Value: $00B48246; Name: 'SteelBlue'), // #4682B4
+    (Value: $008CB4D2; Name: 'Tan'), // #D2B48C
+    (Value: $00808000; Name: 'Teal'), // #008080
+    (Value: $00D8BFD8; Name: 'Thistle'), // #D8BFD8
+    (Value: $004763FF; Name: 'Tomato'), // #FF6347
+    (Value: $00D0E040; Name: 'Turquoise'), // #40E0D0
+    (Value: $00EE82EE; Name: 'Violet'), // #EE82EE
+    (Value: $00B3DEF5; Name: 'Wheat'), // #F5DEB3
+    (Value: $00FFFFFF; Name: 'White'), // #FFFFFF
+    (Value: $00F5F5F5; Name: 'WhiteSmoke'), // #F5F5F5
+    (Value: $0000FFFF; Name: 'Yellow'), // #FFFF00
+    (Value: $0032CD9A; Name: 'YellowGreen') // #9ACD32
     );
 
   ColorToPretyName: array[0..46] of TIdentMapEntry = (
@@ -405,6 +409,15 @@ begin
   end;
 end;
 
+function IntToColorString(Color: Integer): string;
+begin
+  if IntToIdent(Color, Result, WebColors) or
+    IntToIdent(Color, Result, ColorToPretyName) then
+    exit
+  else
+    Result := ColorToString(Color);
+end;
+
 function TEnhancedIniFile.ReadColor(const Section, Ident: string; Default: TColor): TColor;
 var
   Value: string;
@@ -424,7 +437,7 @@ begin
     or IdentToInt(Value, Longint(Result), ColorToPretyName)
     or IdentToColor('cl' + Value, Longint(Result))
     or IdentToColor(Value, Longint(Result)) then
-    Exit;
+    exit;
 
   if (Pos('#', Value) = 1)
     or (Pos('$', Value) = 1)

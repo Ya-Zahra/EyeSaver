@@ -12,7 +12,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics,
   Controls, Forms, Dialogs, ExtCtrls, StdCtrls, StrUtils,
-  SysConst, MonitorLabels, EnhancedIniFiles;
+  SysConst, MonitorLabels, EnhancedIniFiles, TypInfo;
 
 const
   WM_APPINICHANGED = WM_USER + 1;
@@ -31,6 +31,7 @@ type
     procedure FormDestroy(Sender: TObject);
   private
     { Private declarations }
+    FIniFileAge: Integer;
     FMonitorCount: Integer;
     Panel1: TLabels;
     FDebug: Boolean;
@@ -72,7 +73,7 @@ var
 implementation
 
 uses
-  Registry, Math;
+  Registry, Math, IniFiles;
 
 {$R *.dfm}
 {$R 'fonts.res' 'fonts.rc'}
@@ -131,10 +132,12 @@ begin
     if Obj = WAIT_OBJECT_0 then
     begin
       PostMessage(Form1.Handle, WM_APPINICHANGED, 0, 0);
-      FindNextChangeNotification(ChangeHandle);
-    end;
+      if not FindNextChangeNotification(ChangeHandle) then
+        break;
+    end
+    else
+      break;
   end;
-
 end;
 
 procedure TForm1.HideMouseCursor;
@@ -298,38 +301,58 @@ begin
 end;
 
 procedure TForm1.InitCfg;
+type
+  TIniWriteAs = (iwaNormal, iwaBool, iwaInteger, iwaColor);
 var
   ini: TEnhancedIniFile;
-
-  procedure WriteINE(Ident: string; Value: Variant);
+  procedure WriteINE2(const ValueType: PTypeInfo);
   begin
+    if Assigned(ValueType) then
+      ShowMessage(GetEnumName(TypeInfo(TTypeKind), Ord(ValueType.Kind)) + ' - ' + ValueType.Name);
+  end;
+  procedure WriteINE(Ident: string; Value: Variant; writeAs: TIniWriteAs = iwaNormal);
+  begin
+    ShowMessage(Ident + ' : ' + GetEnumName(TypeInfo(TVarType), ord(VarType(Value))));
     with ini do
       if not ValueExists(_Main, Ident) then
         case VarType(Value) of
-          varSmallint, varInteger, varByte:
-            WriteInteger(_Main, Ident, Value);
+          varSmallint, varInteger,
+            varByte, varShortInt,
+            varWord, varLongWord,
+            varInt64:
+            case writeAs of
+              iwaColor:
+                WriteString(_Main, Ident, IntToColorString(Value));
+            else
+              WriteInteger(_Main, Ident, Value);
+            end;
           varSingle, varDouble, varCurrency:
             WriteFloat(_Main, Ident, Value);
           varBoolean:
-            WriteBool(_Main, Ident, Value);
+            case writeAs of
+              iwaBool: WriteString(_Main, Ident, BoolToStr(Value, true));
+            else
+              WriteBool(_Main, Ident, Value);
+            end;
           varString, varOleStr:
             WriteString(_Main, Ident, Value);
-        end;
+        end
   end;
-
 begin
+
+  //WriteINE2(TypeInfo(TColor));
   try
     ini := TEnhancedIniFile.Create(FIniPath);
     try
-      WriteINE(_UseRandomLCDFontColors, CUseRandomLCDFontColors);
-      WriteINE(_LCDColor, CLCDColor);
-      WriteINE(_LCDFontColor, CLCDFontColor);
+      WriteINE(_UseRandomLCDFontColors, CUseRandomLCDFontColors, iwaBool);
+      WriteINE(_LCDColor, CLCDColor, iwaColor);
+      WriteINE(_LCDFontColor, CLCDFontColor, iwaColor);
       WriteINE(_FadeInMiliseconds, CFadeInMiliseconds);
       WriteINE(_FadeOutMiliseconds, CFadeOutMiliseconds);
-      WriteINE(_HideMouseCursor, CHideMouseCursor);
-      WriteINE(_SecondsToShowForm, GSecondsToShowForm);
-      WriteINE(_SecondsToPause, GSecondsToPause);
-      WriteINE(_AllowCloseWithAltF4, CAllowCloseWithAltF4);
+      WriteINE(_HideMouseCursor, CHideMouseCursor, iwaBool);
+      WriteINE(_SecondsToShowForm, CSecondsToShowForm);
+      WriteINE(_SecondsToPause, CSecondsToPause);
+      WriteINE(_AllowCloseWithAltF4, CAllowCloseWithAltF4, iwaBool);
     finally
       ini.Free;
     end;
@@ -351,7 +374,6 @@ begin
     Result := i <> 0
   else
     raise EConvertError.CreateResFmt(@SInvalidBoolean, [s]);
-  //    ConvertErrorFmt(@SInvalidBoolean, [S]);
 end;
 
 procedure TForm1.LoadCfg;
@@ -376,6 +398,7 @@ begin
   FSecondsToShowForm := GSecondsToShowForm;
   FSecondsToPause := GSecondsToPause;
   Timer1.Enabled := true;
+  FIniFileAge := FileAge(FIniPath);
 end;
 
 procedure TForm1.LoadResourceFonts;
@@ -411,8 +434,8 @@ begin
     PChar(ExtractFilePath(FIniPath)),
     False,
     FILE_NOTIFY_CHANGE_LAST_WRITE);
-
-  WatchThread := TChangeMonitorThread.Create(False);
+  if ChangeHandle <> INVALID_HANDLE_VALUE then
+    WatchThread := TChangeMonitorThread.Create(False);
 
   InitCfg;
   //  if FileExists(FIniPath) then
@@ -478,7 +501,7 @@ procedure TForm1.FormDestroy(Sender: TObject);
 begin
   Timer1.Enabled := false;
   Timer2.Enabled := false;
-  if ChangeHandle <> 0 then
+  if ChangeHandle <> INVALID_HANDLE_VALUE then
     FindCloseChangeNotification(ChangeHandle);
   if Assigned(WatchThread) then
   begin
@@ -494,7 +517,8 @@ end;
 
 procedure TForm1.WMIniChanged(var Message: TMessage);
 begin
-  LoadCfg;
+  if FileAge(FIniPath) <> FIniFileAge then
+    LoadCfg;
 end;
 
 procedure TForm1.WMDisplayChange(var Message: TMessage);
