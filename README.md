@@ -7,7 +7,7 @@
 
 ## Default Behavior  
 - After **20 minutes** of continuous computer usage:  
-  - Screen gradually dims over **1.5 minutes** with a countdown timer.  
+  - Screen gradually dims over **2 minutes** with a countdown timer.  
   - After the rest period, the screen smoothly returns to normal.  
 
 ## Customization  
