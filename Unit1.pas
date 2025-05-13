@@ -1,10 +1,10 @@
 unit Unit1;
 
 (*
-  "EyeSaver" ver 1.3 – Developed by Mohsen E.Davatgar
+  "EyeSaver" ver 1.4 – Developed by Mohsen E.Davatgar
   Built with Borland Delphi 7
   All rights reserved.
-  https://github.com/Ya-Zahra
+  https://github.com/Ya-Zahra/EyeSaver
 *)
 
 interface
@@ -87,7 +87,7 @@ var
 
 const
   CAppShortName = 'HE_EyeSaver';
-  CResourceFontName = 'Digital-7 Mono'; // 'DIGITAL7MONO';
+  CResourceFontName = 'DIGITAL7MONO'; //'Digital-7 Mono';
   CResourceFontID = 'DIGITAL7MONO';
 
   CDefaultLCDFontName = 'Consolas';
