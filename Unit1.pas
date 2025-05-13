@@ -31,16 +31,16 @@ type
     procedure FormDestroy(Sender: TObject);
   private
     { Private declarations }
+    FPrevForegroundWnd: HWND;
     FIniFileAge: Integer;
-    FMonitorCount: Integer;
     Panel1: TLabels;
     FDebug: Boolean;
     FUseRandomLCDFontColors: Boolean;
     FHideMouseCursor: Boolean;
     FAllowCloseWithAltF4: Boolean;
     FIniPath: string;
-    FSecondsToShowForm: Integer;
-    FSecondsToPause: Integer;
+    FWorkingSeconds: Integer;
+    FEyeRestSeconds: Integer;
     FFadeInMiliseconds: Integer;
     FFadeOutMiliseconds: Integer;
     FLCDFontColor: Integer;
@@ -62,6 +62,8 @@ type
     function GetLCDFontName: string;
     procedure UpdatePanel;
     procedure UpdateFormSizePos;
+    procedure RestorePreviousWindow;
+    procedure BringFormToTop;
   public
     { Public declarations }
   protected
@@ -93,12 +95,12 @@ const
   CUseRandomLCDFontColors = true;
   CLCDColor = Integer(clBlack);
   CLCDFontColor = Integer(clAqua);
-  CFadeInMiliseconds = 2000;
-  CFadeOutMiliseconds = 2000;
+  CFadeInMiliseconds = 3000;
+  CFadeOutMiliseconds = 3000;
   CHideMouseCursor = true;
-  CMinSecondsToShowForm = 300; // 5 Minuts
-  CSecondsToShowForm = 1200; // 20 Minuts
-  CSecondsToPause = 90; // 1.5 Minuts
+  CMinWorkingSeconds = 300; // 5 Minuts
+  CWorkingSeconds = 1200; // 20 Minuts
+  CEyeRestSeconds = 120; // 2 Minuts
   CAllowCloseWithAltF4 = true;
   _Debug = 'Debug';
   _UseRandomLCDFontColors = 'UseRandomLCDFontColors';
@@ -107,14 +109,14 @@ const
   _FadeInMiliseconds = 'FadeInMiliseconds';
   _FadeOutMiliseconds = 'FadeOutMiliseconds';
   _HideMouseCursor = 'HideMouseCursor';
-  _SecondsToShowForm = 'SecondsToShowForm';
-  _SecondsToPause = 'SecondsToPause';
+  _WorkingSeconds = 'WorkingSeconds';
+  _EyeRestSeconds = 'EyeRestSeconds';
   _AllowCloseWithAltF4 = 'AllowCloseWithAltF4';
   _Main = 'Main';
 
 var
-  GSecondsToShowForm: Integer;
-  GSecondsToPause: Integer;
+  GWorkingSeconds: Integer;
+  GEyeRestSeconds: Integer;
 
 type
   TChangeMonitorThread = class(TThread)
@@ -154,11 +156,11 @@ end;
 
 procedure TForm1.Timer1Timer(Sender: TObject);
 begin
-  Dec(FSecondsToShowForm);
-  if FSecondsToShowForm <= 0 then
+  Dec(FWorkingSeconds);
+  if FWorkingSeconds <= 0 then
   begin
     Timer1.Enabled := false;
-    FSecondsToPause := GSecondsToPause;
+    FEyeRestSeconds := GEyeRestSeconds;
     UpdatePanel;
     ShowForm;
     Timer2.Enabled := true;
@@ -260,8 +262,54 @@ begin
   Height := Screen.DesktopHeight;
 end;
 
+procedure TForm1.BringFormToTop;
+var
+  ForegroundThreadID, CurrentThreadID: DWORD;
+begin
+  BringWindowToTop(Handle);
+  CurrentThreadID := GetCurrentThreadId;
+  ForegroundThreadID := GetWindowThreadProcessId(FPrevForegroundWnd, nil);
+  if ForegroundThreadID <> CurrentThreadID then
+  begin
+    AttachThreadInput(CurrentThreadID, ForegroundThreadID, True);
+    SetForegroundWindow(Handle);
+    AttachThreadInput(CurrentThreadID, ForegroundThreadID, False);
+  end
+  else
+    SetForegroundWindow(Handle);
+end;
+
+procedure TForm1.RestorePreviousWindow;
+var
+  ForegroundThreadID, CurrentThreadID: DWORD;
+begin
+  if FPrevForegroundWnd = 0 then
+    Exit;
+
+  if IsWindow(FPrevForegroundWnd) then
+  begin
+    if IsIconic(FPrevForegroundWnd) then
+      ShowWindow(FPrevForegroundWnd, SW_RESTORE);
+
+    BringWindowToTop(FPrevForegroundWnd);
+
+    CurrentThreadID := GetCurrentThreadId;
+    ForegroundThreadID := GetWindowThreadProcessId(FPrevForegroundWnd, nil);
+
+    if ForegroundThreadID <> CurrentThreadID then
+    begin
+      AttachThreadInput(ForegroundThreadID, CurrentThreadID, True);
+      SetForegroundWindow(FPrevForegroundWnd);
+      AttachThreadInput(ForegroundThreadID, CurrentThreadID, False);
+    end
+    else
+      SetForegroundWindow(FPrevForegroundWnd);
+  end;
+end;
+
 procedure TForm1.ShowForm();
 begin
+  FPrevForegroundWnd := GetForegroundWindow;
   with Monitor do //this will update monitors
     ;
   Color := FLCDColor;
@@ -274,8 +322,7 @@ begin
   Sleep(1);
   Panel1.Visible := true;
   Visible := true;
-  BringToFront;
-  SetForegroundWindow(Handle);
+  BringFormToTop;
 end;
 
 procedure TForm1.FormShow(Sender: TObject);
@@ -343,8 +390,8 @@ begin
       WriteINE(_FadeInMiliseconds, CFadeInMiliseconds);
       WriteINE(_FadeOutMiliseconds, CFadeOutMiliseconds);
       WriteINE(_HideMouseCursor, CHideMouseCursor, iwaBool);
-      WriteINE(_SecondsToShowForm, CSecondsToShowForm);
-      WriteINE(_SecondsToPause, CSecondsToPause);
+      WriteINE(_WorkingSeconds, CWorkingSeconds);
+      WriteINE(_EyeRestSeconds, CEyeRestSeconds);
       WriteINE(_AllowCloseWithAltF4, CAllowCloseWithAltF4, iwaBool);
     finally
       ini.Free;
@@ -380,16 +427,16 @@ begin
       FFadeInMiliseconds := ReadInteger(_Main, _FadeInMiliseconds, CFadeInMiliseconds);
       FFadeOutMiliseconds := ReadInteger(_Main, _FadeOutMiliseconds, CFadeOutMiliseconds);
       FHideMouseCursor := ReadBool(_Main, _HideMouseCursor, CHideMouseCursor);
-      GSecondsToShowForm := ReadInteger(_Main, _SecondsToShowForm, CSecondsToShowForm);
-      GSecondsToPause := ReadInteger(_Main, _SecondsToPause, CSecondsToPause);
+      GWorkingSeconds := ReadInteger(_Main, _WorkingSeconds, CWorkingSeconds);
+      GEyeRestSeconds := ReadInteger(_Main, _EyeRestSeconds, CEyeRestSeconds);
       FAllowCloseWithAltF4 := ReadBool(_Main, _AllowCloseWithAltF4, CAllowCloseWithAltF4);
     finally
       Free;
     end;
   if not FDebug then
-    GSecondsToShowForm := Max(GSecondsToShowForm, CMinSecondsToShowForm);
-  FSecondsToShowForm := GSecondsToShowForm;
-  FSecondsToPause := GSecondsToPause;
+    GWorkingSeconds := Max(GWorkingSeconds, CMinWorkingSeconds);
+  FWorkingSeconds := GWorkingSeconds;
+  FEyeRestSeconds := GEyeRestSeconds;
   Timer1.Enabled := true;
   FIniFileAge := FileAge(FIniPath);
 end;
@@ -408,10 +455,6 @@ end;
 
 procedure TForm1.FormCreate(Sender: TObject);
 begin
-  Randomize;
-  FMonitorCount := Screen.MonitorCount;
-  Panel1 := TLabels.Create(Self);
-
   FAppMutex := CreateMutex(nil, True, PChar(CAppShortName));
   if GetLastError = ERROR_ALREADY_EXISTS then
   begin
@@ -420,6 +463,8 @@ begin
     Application.Terminate;
     exit;
   end;
+  Randomize;
+  Panel1 := TLabels.Create(Self);
   AddToAutoRun(CAppShortName, Application.ExeName);
   FIniPath := Application.ExeName + '.ini';
   LoadResourceFonts;
@@ -453,23 +498,24 @@ end;
 
 procedure TForm1.DoHideForm;
 begin
-  FSecondsToShowForm := GSecondsToShowForm;
-  FSecondsToPause := GSecondsToPause;
+  FWorkingSeconds := GWorkingSeconds;
+  FEyeRestSeconds := GEyeRestSeconds;
   Timer2.Enabled := false;
   Timer1.Enabled := true;
   HideForm;
+  RestorePreviousWindow;
 end;
 
 procedure TForm1.UpdatePanel;
 begin
-  Panel1.Caption := SecondsToMMSS(FSecondsToPause);
+  Panel1.Caption := SecondsToMMSS(FEyeRestSeconds);
 end;
 
 procedure TForm1.Timer2Timer(Sender: TObject);
 begin
-  Dec(FSecondsToPause);
+  Dec(FEyeRestSeconds);
   UpdatePanel;
-  if (FSecondsToPause <= 0) then
+  if (FEyeRestSeconds <= 0) then
   begin
     Application.ProcessMessages;
     DoHideForm;
@@ -506,6 +552,8 @@ begin
     CloseHandle(FAppMutex);
   if FResFontHandle <> 0 then
     RemoveFontMemResourceEx(FResFontHandle);
+  if Assigned(Panel1) then
+    Panel1.Free;
 end;
 
 procedure TForm1.WMIniChanged(var Message: TMessage);
@@ -515,16 +563,9 @@ begin
 end;
 
 procedure TForm1.WMDisplayChange(var Message: TMessage);
-var
-  mc: Integer;
 begin
-  mc := GetSystemMetrics(SM_CMONITORS);
-  if mc <> FMonitorCount then
-  begin
-    FMonitorCount := mc;
-    UpdateFormSizePos;
-    Panel1.CheckMonitors;
-  end;
+  UpdateFormSizePos;
+  Panel1.UpdateLabels;
   inherited;
 end;
 

@@ -22,19 +22,16 @@ type
     FCaption: TCaption;
     FForm: TForm;
     FLabels: TList;
-    FMonitorCount: Integer;
     procedure CreateLabels;
     procedure ClearLabels;
-    procedure UpdateLabels;
     procedure SetFontName(const Value: string);
     procedure SetCaption(const Value: TCaption);
     procedure SetFontColor(const Value: TColor);
     procedure SetVisible(const Value: Boolean);
-    function GetMonitorCount: Integer;
   public
     constructor Create(AForm: TForm); reintroduce;
     destructor Destroy; override;
-    procedure CheckMonitors;
+    procedure UpdateLabels;
     property FontName: string read FFontName write SetFontName;
     property FontColor: TColor read FFontColor write SetFontColor;
     property Visible: Boolean read FVisible write SetVisible;
@@ -53,7 +50,6 @@ begin
   FCaption := '';
   FForm := AForm;
   FLabels := TList.Create;
-  FMonitorCount := GetMonitorCount;
   CreateLabels;
 end;
 
@@ -63,21 +59,15 @@ begin
   inherited Destroy;
 end;
 
-function TLabels.GetMonitorCount: Integer;
-begin
-  Result := GetSystemMetrics(SM_CMONITORS);
-end;
-
 procedure TLabels.CreateLabels;
 var
   i: Integer;
   NewLabel: TLabel;
-
 begin
   ClearLabels;
   with FForm.Monitor do //this will update monitors
     ;
-  for i := 0 to GetMonitorCount - 1 do
+  for i := 0 to Screen.MonitorCount - 1 do
   begin
     NewLabel := TLabel.Create(FForm);
     NewLabel.Parent := FForm;
@@ -106,15 +96,6 @@ begin
   for i := 0 to FLabels.Count - 1 do
     TLabel(FLabels[i]).Free;
   FLabels.Clear;
-end;
-
-procedure TLabels.CheckMonitors;
-begin
-  if Screen.MonitorCount <> FMonitorCount then
-  begin
-    FMonitorCount := Screen.MonitorCount;
-    UpdateLabels;
-  end;
 end;
 
 procedure TLabels.UpdateLabels;
